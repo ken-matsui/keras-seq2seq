@@ -1,0 +1,14 @@
+# MacOS
+.DS_STORE
+
+data
+models/*.npz
+raw/*
+
+parse
+
+instrumentscli*
+!.gitkeep
+*.pyc
+__pycache__
+.python-version
