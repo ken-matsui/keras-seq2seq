@@ -2,6 +2,7 @@ beautifulsoup4==4.6.0
 cachetools==2.0.1
 certifi==2017.11.5
 chainer==2.1.0
+keras
 chardet==3.0.4
 click==6.7
 filelock==2.0.13
@@ -23,5 +24,4 @@ python-dotenv==0.7.1
 requests==2.18.4
 rsa==3.4.2
 six==1.11.0
-slackweb==1.0.5
 urllib3==1.22

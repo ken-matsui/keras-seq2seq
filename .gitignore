@@ -12,3 +12,6 @@ instrumentscli*
 *.pyc
 __pycache__
 .python-version
+
+venv
+.idea
