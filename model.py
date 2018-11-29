@@ -108,7 +108,6 @@ class Attention(object):
         :param h: Decoderで出力された中間ベクトル
         :return: 順向きのEncoderの中間ベクトルの加重平均と逆向きのEncoderの中間ベクトルの加重平均
         """
-        # 引数の形から，numpyかcupyかを判断する．
         batch_size = h.data.shape[0]
         # weight
         ws = []
@@ -126,8 +125,8 @@ class Attention(object):
         for f, b, w in zip(fs, bs, ws):
             w /= sum_w  # ウェイトの和が1になるように正規化
             # ウェイト * Encoderの中間ベクトルを出力するベクトルに足していく
-            att_f += layers.Reshape(batch_size, self.hidden_size)(backend.batch_dot(f, w))
-            att_b += layers.Reshape(batch_size, self.hidden_size)(backend.batch_dot(b, w))
+            att_f += layers.Reshape((batch_size, self.hidden_size))(backend.batch_dot(f, w))
+            att_b += layers.Reshape((batch_size, self.hidden_size))(backend.batch_dot(b, w))
         return att_f, att_b
 
 

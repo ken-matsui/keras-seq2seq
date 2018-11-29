@@ -5,9 +5,11 @@ from glob import glob
 from os.path import relpath, splitext
 
 import tensorflow as tf
+# from tensorflow.python import keras
+from tensorflow.python.keras import Model
+import numpy as np
 
-from AttSeq2Seq.model import AttSeq2Seq
-from AttSeq2Seq.trainer import Trainer
+from model import AttSeq2Seq
 
 
 flags = tf.flags
@@ -46,7 +48,7 @@ def load_ids():
     return queries, responses
 
 
-def batch_ids(ids, sentence_type):
+def batch_ids(ids, sentence_type):  # TODO: 0を補填する
     if sentence_type == "query":  # queryの場合は前方に-1を補填する
         if len(ids) > FLAGS.decode_max_size:  # ミニバッチ単語サイズになるように先頭から削る
             del ids[0:len(ids) - FLAGS.decode_max_size]
@@ -78,26 +80,34 @@ def main():
     if FLAGS.resume:
         if FLAGS.select == 0:
             # 最新のモデルデータを使用する．
-            files = [splitext(relpath(s, FLAGS.out))[0] for s in glob(FLAGS.out + "*.npz")]
+            files = [splitext(relpath(s, FLAGS.out))[0] for s in glob(FLAGS.out + "*.h5")]
             num = max(list(map(int, files)))
         else:
             # 指定のモデルデータを使用する．
             num = FLAGS.select
-        npz = FLAGS.out + str(num) + ".npz"
-        print("Resume training from", npz)
+        hdf5 = FLAGS.out + str(num) + ".h5"
+        print("Resume training from", hdf5)
     else:
         try:
             os.mkdir(FLAGS.out)
         except:
             pass
         print("Train")
-        npz = None
-    trainer = Trainer(model, npz)
-    trainer.fit(queries=queries,
-                responses=responses,
-                train_path=FLAGS.out,
-                epoch_num=FLAGS.epoch,
-                batch_size=FLAGS.batchsize)
+        hdf5 = None
+
+    # if hdf5 is not None:
+    #     model = keras.models.load_model(hdf5)
+
+    train_queries = np.array(queries)
+    train_responses = np.array(responses)
+    # teacher_num = min(len(train_queries), len(train_responses))
+
+    model = Model(inputs=train_queries, outputs=train_responses)
+    model.compile(optimizer='adam',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    model.fit(train_queries, train_responses, batch_size=FLAGS.batchsize, epochs=FLAGS.epoch)
+    model.save(FLAGS.out + str(FLAGS.epoch) + '.h5')
 
 
 if __name__ == '__main__':
