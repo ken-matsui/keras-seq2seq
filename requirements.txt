@@ -8,6 +8,8 @@ Keras-Preprocessing==1.0.5
 Markdown==3.0.1
 numpy==1.15.4
 protobuf==3.6.1
+pydot-ng==2.0.0
+pyparsing==2.3.0
 six==1.11.0
 tensorboard==1.12.0
 tensorflow==1.12.0
