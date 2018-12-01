@@ -1,11 +1,11 @@
-# keras-att-seq2seq
+## keras-att-seq2seq
 
 Use talk data of Facebook messenger and LINE for training data.
 
-## HOW TO USE
+### HOW TO USE
 ```
 $ git clone $(This repository's URL)
-$ cd chainer_att-seq2seq/
+$ cd keras-att-seq2seq/
 
 $ mv ~/Downloads/facebook-$(USER) ./raw/facebook
 $ mkdir ./raw/line
@@ -37,18 +37,18 @@ Interactive decode from ./result/30.npz
 >
 ```
 
-### Input data
+#### Input data
 ```
 data = [["query sentence", "response sentence"],
 	["query sentence", "response sentence"],
 	[..., ...], ...]
 ```
 
-## Important
+### Important
 MeCabの辞書は，[mecab-ipadic-neologd](https://github.com/neologd/mecab-ipadic-neologd)を使用しました．
 MeCab自体のインストールは，[mecab-ipadic-neologd](https://github.com/neologd/mecab-ipadic-neologd)を参考にしてください．
 
-# CPP
+### parse.cpp
 :warning: -lboost_filesystemオプションは，昔の記事だと，-lboost-filesystemとなっている場合が多いですが，-lboost_filesystemが正しいです．
 
 **e.g. compile option**
