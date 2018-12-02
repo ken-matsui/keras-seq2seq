@@ -1,46 +1,17 @@
 # coding: utf-8
 
+import os
+
 import tensorflow as tf
+from tensorflow.python.keras import Model
 from tensorflow.python.keras.layers import *
 from tensorflow.python.keras.activations import tanh
 from tensorflow.python.keras.backend import zeros, exp, batch_dot
+# from tensorflow.python.keras.callbacks import ModelCheckpoint
+from tensorflow.python.keras.utils import plot_model
 import numpy as np
 
 __all__ = ['AttSeq2Seq']
-
-
-class LSTMEncoder(object):
-    def __init__(self, vocab_size, embed_size, hidden_size):
-        """
-        LSTM Encoder
-        :param vocab_size: 使われる単語の種類数
-        :param embed_size: 単語をベクトル表現した際のサイズ
-        :param hidden_size: 隠れ層のサイズ
-        """
-        super(LSTMEncoder, self).__init__()
-        self.il = Input(shape=(vocab_size,))
-        # self.xe = L.EmbedID(vocab_size, embed_size, ignore_label=-1)
-        self.xe = Embedding(vocab_size, embed_size, mask_zero=True)
-        # self.eh = L.Linear(embed_size, 4 * hidden_size)
-        self.eh = Dense(4 * hidden_size, input_shape=(embed_size,))
-        # self.hh = L.Linear(hidden_size, 4 * hidden_size)
-        self.hh = Dense(4 * hidden_size, input_shape=(hidden_size,))
-
-    def __call__(self, x, c, h):
-        """
-        Encoderの計算
-        :param x: one-hotな単語
-        :param c: 内部メモリ
-        :param h: 隠れ層
-        :return: 次の内部メモリ、次の隠れ層
-        """
-        with tf.variable_scope("LSTMEncoder"):
-            # x
-            e = self.xe(self.il)
-            e = tanh(e)
-            e = Add()([self.eh(e), self.hh(h)])
-            e = LSTM(c)(e)
-        return e
 
 
 class AttLSTMDecoder(object):
@@ -136,28 +107,114 @@ class Attention(object):
 
 
 class AttSeq2Seq(object):
-    def __init__(self, embed_size, vocab_size):
+    def __init__(self, embed_size, data_dir, decode_max_size):
         """
         Sequence to Sequence with Attention Model
-        :param embed_size: 単語ベクトルのサイズ
-        :param vocab_size: 語彙数のサイズ
-        # :param hidden_size: 隠れ層のサイズ
-        # :param batch_size: ミニバッチのサイズ
         """
         super(AttSeq2Seq, self).__init__()
+        # Variables
+        self.num_vocabularies = len(self.__load_vocabularies(data_dir))
+        self.data_dir = data_dir
+        self.decode_max_size = decode_max_size
+
         # Layers
-        self.encoder_inputs = Input(shape=(None, vocab_size,))
+        self.encoder_inputs = Input(shape=(None,))
+        encoder_embed = Embedding(self.num_vocabularies, embed_size)
         encoder = LSTM(embed_size, return_state=True)
 
-        self.decoder_inputs = Input(shape=(None, vocab_size,))
+        self.decoder_inputs = Input(shape=(None,))
+        decoder_embed = Embedding(self.num_vocabularies, embed_size)  # mask_zero=True
         self.decoder = LSTM(embed_size, return_sequences=True, return_state=True)
-        self.decoder_dense = Dense(vocab_size, activation='softmax')
+        self.decoder_dense = Dense(self.num_vocabularies, activation='softmax')
 
         # Calculation Graph
         with tf.variable_scope("AttSeq2Seq"):
-            encoder_outputs, state_h, state_c = encoder(self.encoder_inputs)
+            x = encoder_embed(self.encoder_inputs)
+            encoder_outputs, state_h, state_c = encoder(x)
             # We discard `encoder_outputs` and only keep the states.
             self.encoder_states = [state_h, state_c]
 
-            decoder_outputs, _, _ = self.decoder(self.decoder_inputs, initial_state=self.encoder_states)
+            x = decoder_embed(self.decoder_inputs)
+            decoder_outputs, _, _ = self.decoder(x, initial_state=self.encoder_states)
             self.decoder_outputs = self.decoder_dense(decoder_outputs)
+
+    def train(self, batch_size, embed_size, epochs, output_path):
+        # Load integer sequences
+        encoder_input_data, decoder_input_data = self.__load_ids()
+
+        # Note that `decoder_target_data` needs to be one-hot encoded,
+        # rather than sequences of integers like `decoder_input_data`!
+        decoder_target_data = np.zeros(
+            (len(encoder_input_data), self.decode_max_size, self.num_vocabularies),
+            dtype='float32')
+        for i, target_text in enumerate(decoder_input_data):
+            for t, char in enumerate(target_text):
+                if t > 0:
+                    # decoder_target_data will be ahead by one timestep
+                    # and will not include the start character.
+                    decoder_target_data[i, t - 1, char] = 1.
+
+        print('Number of samples:', len(encoder_input_data))
+        print('Number of unique vocabularies:', self.num_vocabularies)
+        print('Max sequence length:', self.decode_max_size)
+        print('Size of mini batch:', batch_size)
+        print('Size of embed:', embed_size)
+        print('Number of epochs:', epochs)
+        print()
+
+        model = Model([self.encoder_inputs, self.decoder_inputs], self.decoder_outputs)
+        plot_model(model, to_file='model.png', show_shapes=True)
+        # chkpt_path = os.path.join(output_path, "weights.{epoch:02d}.hdf5")
+        # chkpt = ModelCheckpoint(chkpt_path, period=1)
+        model.summary()
+        model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+        model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
+                  batch_size=batch_size,
+                  epochs=epochs,
+                  validation_split=0.2)
+        # Save model
+        model.save(os.path.join(output_path, str(epochs) + '.h5'))
+
+    @staticmethod
+    def __load_vocabularies(data_dir):
+        """
+        Load word dictionary
+        """
+        with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
+            lines = f.readlines()
+        return list(map(lambda s: s.replace("\n", ""), lines))
+
+    def __load_ids(self):
+        """
+        Load dialogue data (ID)
+        :return Tuple(ndarray, ndarray):
+        """
+        # queries = np.empty((0, self.decode_max_size, 1), int)
+        queries = np.empty((0, self.decode_max_size), int)
+        # responses = np.empty((0, self.decode_max_size, 1), int)    # [[[2], [3], [2]],
+        responses = np.empty((0, self.decode_max_size), int)
+        with open(os.path.join(self.data_dir, 'dataid.txt'), 'r') as f:
+            for l in f.read().split('\n')[:-1]:
+                # Split by query and response
+                d = l.split('\t')
+                # Adjust the word size for mini batch compatibility
+                qs = self.__batch_ids(list(map(int, d[0].split(',')[:-1])), "query")
+                queries = np.append(queries, np.array([qs]), axis=0)
+                rs = self.__batch_ids(list(map(int, d[1].split(',')[:-1])), "response")
+                responses = np.append(responses, np.array([rs]), axis=0)
+        return queries, responses
+
+    def __batch_ids(self, ids, sentence_type):
+        if sentence_type == "query":  # queryの場合は前方に-1を補填する
+            if len(ids) > self.decode_max_size:  # ミニバッチ単語サイズになるように先頭から削る
+                del ids[0:len(ids) - self.decode_max_size]
+            else:  # ミニバッチ単語サイズになるように前方に付け足す 0 -> (<eos>)
+                # ids = ([-1] * (FLAGS.decode_max_size - len(ids))) + ids
+                ids = ([0] * (self.decode_max_size - len(ids))) + ids
+        elif sentence_type == "response":  # responseの場合は後方に-1を補填する
+            if len(ids) > self.decode_max_size:  # ミニバッチ単語サイズになるように末尾から削る
+                del ids[self.decode_max_size:]
+            else:  # ミニバッチ単語サイズになるように後方に付け足す
+                # ids = ids + ([-1] * (FLAGS.decode_max_size - len(ids)))
+                ids = ids + ([0] * (self.decode_max_size - len(ids)))
+        return ids
