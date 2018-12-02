@@ -7,7 +7,7 @@ from tensorflow.python.keras import Model
 from tensorflow.python.keras.layers import *
 from tensorflow.python.keras.activations import tanh
 from tensorflow.python.keras.backend import zeros, exp, batch_dot
-# from tensorflow.python.keras.callbacks import ModelCheckpoint
+from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras.utils import plot_model
 import numpy as np
 
@@ -107,18 +107,22 @@ class Attention(object):
 
 
 class AttSeq2Seq(object):
-    def __init__(self, embed_size, data_dir, decode_max_size):
+    def __init__(self, embed_size, data_dir, decode_max_size, batch_size, epochs, output_path):
         """
         Sequence to Sequence with Attention Model
         """
         super(AttSeq2Seq, self).__init__()
         # Variables
+        self.embed_size = embed_size
         self.num_vocabularies = len(self.__load_vocabularies(data_dir))
         self.data_dir = data_dir
         self.decode_max_size = decode_max_size
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.output_path = output_path
 
         # Layers
-        self.encoder_inputs = Input(shape=(None,))
+        self.encoder_inputs = Input(shape=(None,))  # None -> batch_size (If data_num % batch_size == 0)
         encoder_embed = Embedding(self.num_vocabularies, embed_size)
         encoder = LSTM(embed_size, return_state=True)
 
@@ -138,7 +142,7 @@ class AttSeq2Seq(object):
             decoder_outputs, _, _ = self.decoder(x, initial_state=self.encoder_states)
             self.decoder_outputs = self.decoder_dense(decoder_outputs)
 
-    def train(self, batch_size, embed_size, epochs, output_path):
+    def train(self):
         # Load integer sequences
         encoder_input_data, decoder_input_data = self.__load_ids()
 
@@ -157,23 +161,25 @@ class AttSeq2Seq(object):
         print('Number of samples:', len(encoder_input_data))
         print('Number of unique vocabularies:', self.num_vocabularies)
         print('Max sequence length:', self.decode_max_size)
-        print('Size of mini batch:', batch_size)
-        print('Size of embed:', embed_size)
-        print('Number of epochs:', epochs)
+        print('Size of mini batch:', self.batch_size)
+        print('Size of embed:', self.embed_size)
+        print('Number of epochs:', self.epochs)
         print()
 
         model = Model([self.encoder_inputs, self.decoder_inputs], self.decoder_outputs)
         plot_model(model, to_file='model.png', show_shapes=True)
-        # chkpt_path = os.path.join(output_path, "weights.{epoch:02d}.hdf5")
-        # chkpt = ModelCheckpoint(chkpt_path, period=1)
+        # ckpt_path = os.path.join(output_path, "weights.{epoch:02d}.hdf5")
+        # ckpt = ModelCheckpoint(chkpt_path, period=1)
+        tensorboard = TensorBoard(batch_size=self.batch_size)
         model.summary()
         model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
         model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
-                  batch_size=batch_size,
-                  epochs=epochs,
-                  validation_split=0.2)
+                  batch_size=self.batch_size,
+                  epochs=self.epochs,
+                  validation_split=0.2,
+                  callbacks=[tensorboard])
         # Save model
-        model.save(os.path.join(output_path, str(epochs) + '.h5'))
+        model.save(os.path.join(self.output_path, str(self.epochs) + '.h5'))
 
     @staticmethod
     def __load_vocabularies(data_dir):
@@ -218,3 +224,80 @@ class AttSeq2Seq(object):
                 # ids = ids + ([-1] * (FLAGS.decode_max_size - len(ids)))
                 ids = ids + ([0] * (self.decode_max_size - len(ids)))
         return ids
+
+    def inference(self):
+        # Next: inference mode (sampling).
+        # Here's the drill:
+        # 1) encode input and retrieve initial decoder state
+        # 2) run one step of decoder with this initial state
+        # and a "start of sequence" token as target.
+        # Output will be the next target token
+        # 3) Repeat with the current target token and current states
+
+        # Define sampling models
+        encoder_model = Model(self.encoder_inputs, self.encoder_states)
+
+        decoder_state_input_h = Input(shape=(self.embed_size,))
+        decoder_state_input_c = Input(shape=(self.embed_size,))
+        decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
+        decoder_outputs, state_h, state_c = self.decoder(
+            self.decoder_inputs, initial_state=decoder_states_inputs)
+        decoder_states = [state_h, state_c]
+        decoder_outputs = self.decoder_dense(decoder_outputs)
+        decoder_model = Model(
+            [self.decoder_inputs] + decoder_states_inputs,
+            [decoder_outputs] + decoder_states)
+
+        # Reverse-lookup token index to decode sequences back to
+        # something readable.
+        # reverse_input_char_index = dict(
+        #     (i, char) for char, i in input_token_index.items())
+        # reverse_target_char_index = dict(
+        #     (i, char) for char, i in target_token_index.items())
+
+        def decode_sequence(input_seq):
+            # Encode the input as state vectors.
+            states_value = encoder_model.predict(input_seq)
+
+            # Generate empty target sequence of length 1.
+            target_seq = np.zeros((1, 1, self.num_vocabularies))
+            # Populate the first character of target sequence with the start character.
+            target_seq[0, 0, vocab.index('\t')] = 1.  # TODO: > こんにちは -> [[こ, ん, に, ち, は]]
+            # TODO: 本来の入力は，[[こ, ん, に, ち, は], ...] となるが，それと次元を合わせる
+
+            # Sampling loop for a batch of sequences
+            # (to simplify, here we assume a batch of size 1).
+            stop_condition = False
+            decoded_sentence = ''
+            while not stop_condition:
+                output_tokens, h, c = decoder_model.predict(
+                    [target_seq] + states_value)
+
+                # Sample a token
+                sampled_token_index = np.argmax(output_tokens[0, -1, :])
+                sampled_char = vocab[sampled_token_index]
+                decoded_sentence += sampled_char
+
+                # Exit condition: either hit max length
+                # or find stop character.
+                if (sampled_char == '\n' or
+                        len(decoded_sentence) > self.decode_max_size):
+                    stop_condition = True
+
+                # Update the target sequence (of length 1).
+                target_seq = np.zeros((1, 1, self.num_vocabularies))
+                target_seq[0, 0, sampled_token_index] = 1.
+
+                # Update states
+                states_value = [h, c]
+
+            return decoded_sentence
+
+        for seq_index in range(100):
+            # Take one sequence (part of the training set)
+            # for trying out decoding.
+            input_seq = encoder_input_data[seq_index: seq_index + 1]
+            decoded_sentence = decode_sequence(input_seq)
+            print('-')
+            print('Input sentence:', input_texts[seq_index])
+            print('Decoded sentence:', decoded_sentence)
