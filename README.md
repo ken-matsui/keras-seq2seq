@@ -1,5 +1,7 @@
 ## keras-att-seq2seq
 
+![model.png](model.png)
+
 Use talk data of Facebook messenger and LINE for training data.
 
 ### HOW TO USE
