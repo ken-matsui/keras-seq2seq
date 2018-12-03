@@ -1,4 +1,4 @@
-## keras-att-seq2seq
+## keras-seq2seq
 
 ![model.png](model.png)
 
