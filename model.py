@@ -273,12 +273,11 @@ class AttSeq2Seq(object):
                 # Sample a token
                 sampled_token_index = np.argmax(output_tokens[0, -1, :])
                 sampled_char = vocab[sampled_token_index]
-                if sampled_char != "<eos>":
-                    decoded_sentence += sampled_char
+                decoded_sentence += sampled_char
 
                 # Exit condition: either hit max length
                 # or find stop character.
-                if sampled_char == '\n':
+                if sampled_char == "<eos>":
                     break
 
                 # Update the target sequence (of length 1).
