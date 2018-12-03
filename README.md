@@ -58,28 +58,6 @@ MeCab自体のインストールは，[mecab-ipadic-neologd](https://github.com/
 $ g++ -std=c++1z -O3 -mtune=native -march=native -I/usr/local/Cellar/boost/1.66.0 -lboost_filesystem -lboost_system `mecab-config --cflags` `mecab-config --libs` -o parse parse.cpp
 ```
 
-**速度検証**
-```
-$ instruments -s
-...
-Known Templates:
-"Activity Monitor"
-"Allocations"
-"Blank"
-"Cocoa Layout"
-"Core Animation"
-"Core Data"
-"Counters"
-"Energy Log"
-"File Activity"
-"Leaks"
-"Metal System Trace"
-"Network"
-"SceneKit"
-"System Trace"
-"System Usage"
-"Time Profiler"
-"Zombies"
-$ instruments -t "Time Profiler" -l 10000 ./parse
-$ open ./instrumentscli0.trace
-```
+### Reference
+
+paper : https://arxiv.org/abs/1409.0473
