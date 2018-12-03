@@ -60,4 +60,4 @@ $ g++ -std=c++1z -O3 -mtune=native -march=native -I/usr/local/Cellar/boost/1.66.
 
 ### Reference
 
-paper : https://arxiv.org/abs/1409.0473
+paper : https://arxiv.org/abs/1409.3215
