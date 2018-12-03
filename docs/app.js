@@ -5,6 +5,9 @@ tf.loadModel('./model/model.json')
         document.getElementById('inference-button').classList.remove('is-loading');
         pretrainedModel.summary();
         model = pretrainedModel;
+    })
+    .catch(error => {
+        console.log(error);
     });
 
 function getAccuracyScores(imageData) {
