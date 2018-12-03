@@ -3,22 +3,9 @@ let model;
 tf.loadModel('./model/model.json')
     .then(pretrainedModel => {
         document.getElementById('inference-button').classList.remove('is-loading');
+        pretrainedModel.summary();
         model = pretrainedModel;
     });
-
-function getImageData() {
-    const inputWidth = inputHeight = 28;
-    // resize
-    const tmpCanvas = document.createElement('canvas').getContext('2d');
-    tmpCanvas.drawImage(drawElement, 0, 0, inputWidth, inputHeight);
-    // convert grayscale
-    let imageData = tmpCanvas.getImageData(0, 0, inputWidth, inputHeight);
-    for (let i = 0; i < imageData.data.length; i+=4) {
-        const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
-        imageData.data[i] = imageData.data[i+1] = imageData.data[i+2] = avg;
-    }
-    return imageData;
-}
 
 function getAccuracyScores(imageData) {
     const score = tf.tidy(() => {
