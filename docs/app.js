@@ -1,6 +1,6 @@
 // load pre-trained model
 let model;
-tf.loadModel('/model/model.json')
+tf.loadModel('./model/model.json')
     .then(pretrainedModel => {
         document.getElementById('predict-button').classList.remove('is-loading');
         model = pretrainedModel;
