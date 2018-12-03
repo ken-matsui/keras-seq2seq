@@ -2,7 +2,7 @@
 .DS_STORE
 
 data
-models/*.npz
+models/*.h5
 raw/*
 
 parse
@@ -16,5 +16,4 @@ __pycache__
 venv
 .idea
 
-models
 logs

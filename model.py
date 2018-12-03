@@ -122,12 +122,12 @@ class AttSeq2Seq(object):
         self.output_path = output_path
 
         # Layers
-        self.encoder_inputs = Input(shape=(None,))  # None -> batch_size (If data_num % batch_size == 0)
+        self.encoder_inputs = Input(shape=(None,))  # None == batch_size (when data_num % batch_size == 0)
         encoder_embed = Embedding(self.num_vocabularies, embed_size)
         encoder = LSTM(embed_size, return_state=True)
 
         self.decoder_inputs = Input(shape=(None,))
-        decoder_embed = Embedding(self.num_vocabularies, embed_size)  # mask_zero=True
+        self.decoder_embed = Embedding(self.num_vocabularies, embed_size)  # mask_zero=True
         self.decoder = LSTM(embed_size, return_sequences=True, return_state=True)
         self.decoder_dense = Dense(self.num_vocabularies, activation='softmax')
 
@@ -138,7 +138,7 @@ class AttSeq2Seq(object):
             # We discard `encoder_outputs` and only keep the states.
             self.encoder_states = [state_h, state_c]
 
-            x = decoder_embed(self.decoder_inputs)
+            x = self.decoder_embed(self.decoder_inputs)
             decoder_outputs, _, _ = self.decoder(x, initial_state=self.encoder_states)
             self.decoder_outputs = self.decoder_dense(decoder_outputs)
 
@@ -168,16 +168,18 @@ class AttSeq2Seq(object):
 
         model = Model([self.encoder_inputs, self.decoder_inputs], self.decoder_outputs)
         plot_model(model, to_file='model.png', show_shapes=True)
+
+        callbacks = [TensorBoard(batch_size=self.batch_size)]
         # ckpt_path = os.path.join(output_path, "weights.{epoch:02d}.hdf5")
         # ckpt = ModelCheckpoint(chkpt_path, period=1)
-        tensorboard = TensorBoard(batch_size=self.batch_size)
+
         model.summary()
         model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
         model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
                   batch_size=self.batch_size,
                   epochs=self.epochs,
                   validation_split=0.2,
-                  callbacks=[tensorboard])
+                  callbacks=callbacks)
         # Save model
         model.save(os.path.join(self.output_path, str(self.epochs) + '.h5'))
 
@@ -195,9 +197,7 @@ class AttSeq2Seq(object):
         Load dialogue data (ID)
         :return Tuple(ndarray, ndarray):
         """
-        # queries = np.empty((0, self.decode_max_size, 1), int)
         queries = np.empty((0, self.decode_max_size), int)
-        # responses = np.empty((0, self.decode_max_size, 1), int)    # [[[2], [3], [2]],
         responses = np.empty((0, self.decode_max_size), int)
         with open(os.path.join(self.data_dir, 'dataid.txt'), 'r') as f:
             for l in f.read().split('\n')[:-1]:
@@ -241,7 +241,7 @@ class AttSeq2Seq(object):
         decoder_state_input_c = Input(shape=(self.embed_size,))
         decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
         decoder_outputs, state_h, state_c = self.decoder(
-            self.decoder_inputs, initial_state=decoder_states_inputs)
+            self.decoder_embed(self.decoder_inputs), initial_state=decoder_states_inputs)
         decoder_states = [state_h, state_c]
         decoder_outputs = self.decoder_dense(decoder_outputs)
         decoder_model = Model(
@@ -255,49 +255,50 @@ class AttSeq2Seq(object):
         # reverse_target_char_index = dict(
         #     (i, char) for char, i in target_token_index.items())
 
+        vocab = self.__load_vocabularies(self.data_dir)
+
         def decode_sequence(input_seq):
             # Encode the input as state vectors.
             states_value = encoder_model.predict(input_seq)
-
             # Generate empty target sequence of length 1.
-            target_seq = np.zeros((1, 1, self.num_vocabularies))
-            # Populate the first character of target sequence with the start character.
-            target_seq[0, 0, vocab.index('\t')] = 1.  # TODO: > こんにちは -> [[こ, ん, に, ち, は]]
-            # TODO: 本来の入力は，[[こ, ん, に, ち, は], ...] となるが，それと次元を合わせる
+            target_seq = np.zeros((1, self.num_vocabularies))
 
             # Sampling loop for a batch of sequences
             # (to simplify, here we assume a batch of size 1).
-            stop_condition = False
             decoded_sentence = ''
-            while not stop_condition:
+            for i in range(self.decode_max_size):
                 output_tokens, h, c = decoder_model.predict(
                     [target_seq] + states_value)
 
                 # Sample a token
                 sampled_token_index = np.argmax(output_tokens[0, -1, :])
                 sampled_char = vocab[sampled_token_index]
-                decoded_sentence += sampled_char
+                if sampled_char != "<eos>":
+                    decoded_sentence += sampled_char
 
                 # Exit condition: either hit max length
                 # or find stop character.
-                if (sampled_char == '\n' or
-                        len(decoded_sentence) > self.decode_max_size):
-                    stop_condition = True
+                if sampled_char == '\n':
+                    break
 
                 # Update the target sequence (of length 1).
-                target_seq = np.zeros((1, 1, self.num_vocabularies))
-                target_seq[0, 0, sampled_token_index] = 1.
+                # target_seq = np.zeros((1, self.num_vocabularies))
+                # target_seq[0, sampled_token_index] = 1.
+                # target_seq = np.zeros((1, self.num_vocabularies))
+                target_seq[0, i] = sampled_token_index
 
                 # Update states
                 states_value = [h, c]
 
             return decoded_sentence
 
-        for seq_index in range(100):
+        # Load integer sequences
+        encoder_input_data, decoder_input_data = self.__load_ids()
+        for i in range(100):
             # Take one sequence (part of the training set)
             # for trying out decoding.
-            input_seq = encoder_input_data[seq_index: seq_index + 1]
+            input_seq = encoder_input_data[i]
             decoded_sentence = decode_sequence(input_seq)
             print('-')
-            print('Input sentence:', input_texts[seq_index])
+            print('Input sentence:', ''.join(list(map(lambda x: vocab[x], encoder_input_data[i]))))
             print('Decoded sentence:', decoded_sentence)
