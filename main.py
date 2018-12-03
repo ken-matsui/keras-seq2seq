@@ -6,7 +6,7 @@ import os
 
 import tensorflow as tf
 
-from model import AttSeq2Seq
+from model import Seq2Seq
 
 
 flags = tf.flags
@@ -26,12 +26,12 @@ def main(_):
     try: os.makedirs(FLAGS.model_dir)
     except: pass
 
-    seq2seq = AttSeq2Seq(embed_size=FLAGS.embed_size,
-                         data_dir=FLAGS.data_dir,
-                         decode_max_size=FLAGS.decode_max_size,
-                         batch_size=FLAGS.batch_size,
-                         epochs=FLAGS.epoch,
-                         output_path=FLAGS.model_dir)
+    seq2seq = Seq2Seq(embed_size=FLAGS.embed_size,
+                      data_dir=FLAGS.data_dir,
+                      decode_max_size=FLAGS.decode_max_size,
+                      batch_size=FLAGS.batch_size,
+                      epochs=FLAGS.epoch,
+                      output_path=FLAGS.model_dir)
     seq2seq.train()
     seq2seq.inference()
 
