@@ -2,7 +2,7 @@
 let model;
 tf.loadModel('./model/model.json')
     .then(pretrainedModel => {
-        document.getElementById('predict-button').classList.remove('is-loading');
+        document.getElementById('inference-button').classList.remove('is-loading');
         model = pretrainedModel;
     });
 
@@ -35,7 +35,7 @@ function getAccuracyScores(imageData) {
     return score;
 }
 
-function prediction() {
+function inference() {
     console.log(document.getElementById("input_text").value);
 
     // const imageData = getImageData();
