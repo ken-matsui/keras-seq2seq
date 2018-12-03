@@ -58,6 +58,15 @@ MeCab自体のインストールは，[mecab-ipadic-neologd](https://github.com/
 $ g++ -std=c++1z -O3 -mtune=native -march=native -I/usr/local/Cellar/boost/1.66.0 -lboost_filesystem -lboost_system `mecab-config --cflags` `mecab-config --libs` -o parse parse.cpp
 ```
 
+### Architecture
+(as source code)
+
+https://github.com/matken11235/keras-seq2seq/blob/489463d37ea324ec4c05f6bd19c04eb6ea520614/model.py#L30-L49
+
+I wrote `Layer` and `Calculation Graph` separately as in the above code.
+
+I do not know if this is easy to understand. :fire:
+
 ### Reference
 
 paper : https://arxiv.org/abs/1409.3215
