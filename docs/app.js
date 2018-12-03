@@ -36,25 +36,22 @@ function getAccuracyScores(imageData) {
 }
 
 function prediction() {
-    const imageData = getImageData();
-    const accuracyScores = getAccuracyScores(imageData);
-    const maxAccuracy = accuracyScores.indexOf(Math.max.apply(null, accuracyScores));
-    const elements = document.querySelectorAll(".accuracy");
-    elements.forEach(el => {
-        el.parentNode.classList.remove('is-selected');
-        const rowIndex = Number(el.dataset.rowIndex);
-        if (maxAccuracy === rowIndex) {
-            el.parentNode.classList.add('is-selected');
-        }
-        el.innerText = accuracyScores[rowIndex];
-    })
+    console.log(document.getElementById("input_text").value);
+
+    // const imageData = getImageData();
+    // const accuracyScores = getAccuracyScores(imageData);
+    // const maxAccuracy = accuracyScores.indexOf(Math.max.apply(null, accuracyScores));
+    // const elements = document.querySelectorAll(".accuracy");
+    // elements.forEach(el => {
+    //     el.parentNode.classList.remove('is-selected');
+    //     const rowIndex = Number(el.dataset.rowIndex);
+    //     if (maxAccuracy === rowIndex) {
+    //         el.parentNode.classList.add('is-selected');
+    //     }
+    //     el.innerText = accuracyScores[rowIndex];
+    // })
 }
 
-function reset() {
-    signaturePad.clear();
-    let elements = document.querySelectorAll(".accuracy");
-    elements.forEach(el => {
-        el.parentNode.classList.remove('is-selected');
-        el.innerText = '-';
-    })
+function clear() {
+    document.getElementById("input_text").value = "";
 }
