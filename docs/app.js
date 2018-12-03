@@ -51,7 +51,3 @@ function prediction() {
     //     el.innerText = accuracyScores[rowIndex];
     // })
 }
-
-function clear() {
-    document.getElementById("input_text").value = "";
-}
